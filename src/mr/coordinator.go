@@ -142,7 +142,7 @@ func (c *Coordinator) toNextPhse() {
 
 }
 
-func (c *Coordinator) markFinished(args *Task, reply *Task) error {
+func (c *Coordinator) MarkFinished(args *Task, reply *Task) error {
 	mu.Lock()
 	defer mu.Unlock()
 	switch args.TaskType {
@@ -154,7 +154,7 @@ func (c *Coordinator) markFinished(args *Task, reply *Task) error {
 				meta.state = Done
 				fmt.Printf("Map task[%d] is finished!\n", args.TaskId)
 			} else {
-				fmt.Printf("Map task[%d] is finished, already!]n", args.TaskId)
+				fmt.Printf("Map task[%d] is finished, already!]\n", args.TaskId)
 			}
 		}
 		break
