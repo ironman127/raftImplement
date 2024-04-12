@@ -18,10 +18,12 @@ type Task struct {
 	TaskType  TaskType
 	TaskId    int
 	ReduceNum int
-	FileName  string
+	FileNames []string
 }
 
-type TaskArgs struct{}
+type TaskArgs struct {
+	TaskId int
+}
 
 type TaskType int
 

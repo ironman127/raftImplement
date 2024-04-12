@@ -20,9 +20,7 @@ func check(t *testing.T, ck *Clerk, key string, value string) {
 	}
 }
 
-//
 // test static 2-way sharding, without shard movement.
-//
 func TestStaticShards(t *testing.T) {
 	fmt.Printf("Test: static shards ...\n")
 
@@ -32,7 +30,9 @@ func TestStaticShards(t *testing.T) {
 	ck := cfg.makeClient()
 
 	cfg.join(0)
+
 	cfg.join(1)
+	//DPrintf("###########################################加入Group 1#########################################")
 
 	n := 10
 	ka := make([]string, n)
@@ -116,6 +116,7 @@ func TestJoinLeave(t *testing.T) {
 		check(t, ck, ka[i], va[i])
 	}
 
+	DPrintf("Group1 join...")
 	cfg.join(1)
 
 	for i := 0; i < n; i++ {
@@ -126,6 +127,7 @@ func TestJoinLeave(t *testing.T) {
 	}
 
 	cfg.leave(0)
+	DPrintf("Group1 leave..")
 
 	for i := 0; i < n; i++ {
 		check(t, ck, ka[i], va[i])
@@ -138,11 +140,14 @@ func TestJoinLeave(t *testing.T) {
 	time.Sleep(1 * time.Second)
 
 	cfg.checklogs()
+	DPrintf("check log success =============================================================================!")
 	cfg.ShutdownGroup(0)
 
 	for i := 0; i < n; i++ {
+		DPrintf("shut down group0 =============================================================================!")
 		check(t, ck, ka[i], va[i])
 	}
+	DPrintf("check success =============================================================================!")
 
 	fmt.Printf("  ... Passed\n")
 }
@@ -163,8 +168,11 @@ func TestSnapshot(t *testing.T) {
 	for i := 0; i < n; i++ {
 		ka[i] = strconv.Itoa(i) // ensure multiple shards
 		va[i] = randstring(20)
+		DPrintf("Put %v, %v", ka[i], va[i])
 		ck.Put(ka[i], va[i])
+		DPrintf("Put %v, %v成功...", ka[i], va[i])
 	}
+	DPrintf("###########################################关闭Group 0,1,2#########################################")
 	for i := 0; i < n; i++ {
 		check(t, ck, ka[i], va[i])
 	}
@@ -378,10 +386,8 @@ func TestConcurrent1(t *testing.T) {
 	fmt.Printf("  ... Passed\n")
 }
 
-//
 // this tests the various sources from which a re-starting
 // group might need to fetch shard contents.
-//
 func TestConcurrent2(t *testing.T) {
 	fmt.Printf("Test: more concurrent puts and configuration changes...\n")
 
@@ -731,10 +737,8 @@ func TestUnreliable3(t *testing.T) {
 	fmt.Printf("  ... Passed\n")
 }
 
-//
 // optional test to see whether servers are deleting
 // shards for which they are no longer responsible.
-//
 func TestChallenge1Delete(t *testing.T) {
 	fmt.Printf("Test: shard deletion (challenge 1) ...\n")
 
@@ -816,11 +820,9 @@ func TestChallenge1Delete(t *testing.T) {
 	fmt.Printf("  ... Passed\n")
 }
 
-//
 // optional test to see whether servers can handle
 // shards that are not affected by a config change
 // while the config change is underway
-//
 func TestChallenge2Unaffected(t *testing.T) {
 	fmt.Printf("Test: unaffected shard access (challenge 2) ...\n")
 
@@ -886,11 +888,9 @@ func TestChallenge2Unaffected(t *testing.T) {
 	fmt.Printf("  ... Passed\n")
 }
 
-//
 // optional test to see whether servers can handle operations on shards that
 // have been received as a part of a config migration when the entire migration
 // has not yet completed.
-//
 func TestChallenge2Partial(t *testing.T) {
 	fmt.Printf("Test: partial migration shard access (challenge 2) ...\n")
 

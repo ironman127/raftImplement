@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"sort"
 	"strconv"
 	"time"
 )
@@ -12,27 +13,29 @@ import "log"
 import "net/rpc"
 import "hash/fnv"
 
-//
 // Map functions return a slice of KeyValue.
-//
 type KeyValue struct {
 	Key   string
 	Value string
 }
 
-//
+// for sorting by key.
+type ByKey []KeyValue
+
+// for sorting by key.
+func (a ByKey) Len() int           { return len(a) }
+func (a ByKey) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a ByKey) Less(i, j int) bool { return a[i].Key < a[j].Key }
+
 // use ihash(key) % NReduce to choose the reduce
 // task number for each KeyValue emitted by Map.
-//
 func ihash(key string) int {
 	h := fnv.New32a()
 	h.Write([]byte(key))
 	return int(h.Sum32() & 0x7fffffff)
 }
 
-//
 // main/mrworker.go calls this function.
-//
 func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string) string) {
 
 	// Your worker implementation here.
@@ -43,7 +46,12 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 		case MapTask:
 			{
 				DoMapTask(mapf, &task)
-				callDone()
+				callDone(&task)
+			}
+		case ReduceTask:
+			{
+				doReduceTask(reducef, &task)
+				callDone(&task)
 			}
 		case WaittingTask:
 			{
@@ -68,7 +76,7 @@ func getTask() Task {
 	reply := Task{}
 	ok := call("Coordinator.PollTask", &args, &reply)
 	if ok {
-		fmt.Println(reply)
+		fmt.Println("get task ", reply)
 	} else {
 		fmt.Println("call failed!\n")
 	}
@@ -77,7 +85,8 @@ func getTask() Task {
 
 func DoMapTask(mapf func(string, string) []KeyValue, response *Task) {
 	var intermediate []KeyValue
-	filename := response.FileName
+	filename := response.FileNames[0]
+	fmt.Println(response.FileNames)
 
 	file, err := os.Open(filename)
 	if err != nil {
@@ -116,25 +125,70 @@ func DoMapTask(mapf func(string, string) []KeyValue, response *Task) {
 
 }
 
-func callDone() Task {
+func doReduceTask(reducef func(string, []string) string, response *Task) {
+	reduceFileNum := response.TaskId
+	intermediate := shuffle(response.FileNames)
+	dir, _ := os.Getwd()
+	tempFile, err := ioutil.TempFile(dir, "mr-tmp-*")
+	if err != nil {
+		log.Fatal("Failed to create tmp file", err)
+	}
+	i := 0
+	for i < len(intermediate) {
+		j := i + 1
+		for j < len(intermediate) && intermediate[j].Key == intermediate[i].Key {
+			j++
+		}
+		var values []string
+		for k := i; k < j; k++ {
+			values = append(values, intermediate[k].Value)
+		}
+		output := reducef(intermediate[i].Key, values)
+		fmt.Fprintf(tempFile, "%v %v\n", intermediate[i].Key, output)
+		i = j
+	}
+	tempFile.Close()
+	fn := fmt.Sprintf("mr-out-%d", reduceFileNum)
+	os.Rename(tempFile.Name(), fn)
+}
 
-	args := TaskArgs{}
+func shuffle(files []string) []KeyValue {
+	var kva []KeyValue
+	for _, filePath := range files {
+		file, _ := os.Open(filePath)
+		dec := json.NewDecoder(file)
+		for {
+			var kv KeyValue
+			if err := dec.Decode(&kv); err != nil {
+				break
+			}
+			kva = append(kva, kv)
+		}
+		file.Close()
+	}
+	sort.Sort(ByKey(kva))
+	return kva
+}
+
+func callDone(task *Task) Task {
+
+	args := TaskArgs{
+		TaskId: task.TaskId,
+	}
 	reply := Task{}
 	ok := call("Coordinator.MarkFinished", &args, &reply)
 
 	if ok {
-		fmt.Println(reply)
+		fmt.Println("task marks finish ", reply)
 	} else {
 		fmt.Println("call failed!\n")
 	}
 	return reply
 }
 
-//
 // send an RPC request to the coordinator, wait for the response.
 // usually returns true.
 // returns false if something goes wrong.
-//
 func call(rpcname string, args interface{}, reply interface{}) bool {
 	sockname := coordinatorSock()
 	c, err := rpc.DialHTTP("unix", sockname)
